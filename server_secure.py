@@ -44,6 +44,9 @@ SCOPES = [
 # Track upload jobs per user
 upload_jobs = {}
 
+# Track OAuth flows (temporary, in-memory)
+oauth_flows = {}
+
 # Video MIME types
 VIDEO_MIME_TYPES = [
     "video/mp4", "video/quicktime", "video/x-msvideo", "video/webm",
@@ -440,6 +443,14 @@ class SecureDashboardHandler(SimpleHTTPRequestHandler):
             state=state
         )
         
+        # Store flow for callback (keyed by state)
+        oauth_flows[state] = {
+            "flow": flow,
+            "user_id": user_id,
+            "redirect_uri": redirect_uri,
+            "client_config": client_config
+        }
+        
         self.send_json({"success": True, "auth_url": auth_url})
     
     def handle_oauth_callback(self, parsed):
@@ -463,38 +474,52 @@ class SecureDashboardHandler(SimpleHTTPRequestHandler):
             return
         
         try:
-            # Decode state to get user_id
-            state_data = json.loads(b64decode(state).decode())
-            user_id = state_data.get("user_id")
+            # Get stored flow
+            flow_data = oauth_flows.get(state)
             
-            users = load_users()
-            user = users.get(user_id)
-            
-            if not user:
-                raise Exception("User not found")
-            
-            # Get redirect URI
-            host = self.headers.get("Host", "localhost:8765")
-            protocol = "https" if "railway" in host or "render" in host or "herokuapp" in host else "http"
-            redirect_uri = f"{protocol}://{host}/oauth/callback"
+            if flow_data:
+                # Use the stored flow (has code_verifier)
+                flow = flow_data["flow"]
+                user_id = flow_data["user_id"]
+                
+                # Clean up stored flow
+                del oauth_flows[state]
+            else:
+                # Fallback: decode state and create new flow (may fail with PKCE)
+                state_data = json.loads(b64decode(state).decode())
+                user_id = state_data.get("user_id")
+                
+                users = load_users()
+                user = users.get(user_id)
+                
+                if not user:
+                    raise Exception("User not found")
+                
+                # Get redirect URI
+                host = self.headers.get("Host", "localhost:8765")
+                protocol = "https" if "railway" in host or "render" in host or "herokuapp" in host else "http"
+                redirect_uri = f"{protocol}://{host}/oauth/callback"
+                
+                # Create new flow
+                client_config = {
+                    "web": {
+                        "client_id": user["google_client_id"],
+                        "client_secret": user["google_client_secret"],
+                        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                        "token_uri": "https://oauth2.googleapis.com/token",
+                        "redirect_uris": [redirect_uri]
+                    }
+                }
+                
+                flow = Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri)
             
             # Exchange code for tokens
-            client_config = {
-                "web": {
-                    "client_id": user["google_client_id"],
-                    "client_secret": user["google_client_secret"],
-                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                    "token_uri": "https://oauth2.googleapis.com/token",
-                    "redirect_uris": [redirect_uri]
-                }
-            }
-            
-            flow = Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri)
             flow.fetch_token(code=code)
             
             creds = flow.credentials
             
             # Save token
+            users = load_users()
             users[user_id]["google_token"] = json.loads(creds.to_json())
             save_users(users)
             

@@ -44,8 +44,36 @@ SCOPES = [
 # Track upload jobs per user
 upload_jobs = {}
 
-# Track OAuth flows (temporary, in-memory)
-oauth_flows = {}
+# Track OAuth flows (persistent file-based)
+OAUTH_FLOWS_FILE = DATA_DIR / "oauth_flows.json"
+
+def save_oauth_flow(state: str, user_id: str, redirect_uri: str, client_config: dict):
+    """Save OAuth flow state to file."""
+    flows = {}
+    if OAUTH_FLOWS_FILE.exists():
+        try:
+            flows = json.loads(OAUTH_FLOWS_FILE.read_text())
+        except:
+            flows = {}
+    flows[state] = {
+        "user_id": user_id,
+        "redirect_uri": redirect_uri,
+        "client_config": client_config,
+        "created": datetime.now().isoformat()
+    }
+    OAUTH_FLOWS_FILE.write_text(json.dumps(flows, indent=2))
+
+def get_oauth_flow(state: str) -> dict | None:
+    """Get and remove OAuth flow state."""
+    if not OAUTH_FLOWS_FILE.exists():
+        return None
+    try:
+        flows = json.loads(OAUTH_FLOWS_FILE.read_text())
+        flow_data = flows.pop(state, None)
+        OAUTH_FLOWS_FILE.write_text(json.dumps(flows, indent=2))
+        return flow_data
+    except:
+        return None
 
 # Video MIME types
 VIDEO_MIME_TYPES = [
@@ -443,13 +471,8 @@ class SecureDashboardHandler(SimpleHTTPRequestHandler):
             state=state
         )
         
-        # Store flow for callback (keyed by state)
-        oauth_flows[state] = {
-            "flow": flow,
-            "user_id": user_id,
-            "redirect_uri": redirect_uri,
-            "client_config": client_config
-        }
+        # Store flow data for callback (file-based, survives restarts)
+        save_oauth_flow(state, user_id, redirect_uri, client_config)
         
         self.send_json({"success": True, "auth_url": auth_url})
     
@@ -474,18 +497,15 @@ class SecureDashboardHandler(SimpleHTTPRequestHandler):
             return
         
         try:
-            # Get stored flow
-            flow_data = oauth_flows.get(state)
+            # Get stored flow data
+            flow_data = get_oauth_flow(state)
             
             if flow_data:
-                # Use the stored flow (has code_verifier)
-                flow = flow_data["flow"]
                 user_id = flow_data["user_id"]
-                
-                # Clean up stored flow
-                del oauth_flows[state]
+                redirect_uri = flow_data["redirect_uri"]
+                client_config = flow_data["client_config"]
             else:
-                # Fallback: decode state and create new flow (may fail with PKCE)
+                # Fallback: decode state and get user config
                 state_data = json.loads(b64decode(state).decode())
                 user_id = state_data.get("user_id")
                 
@@ -495,32 +515,51 @@ class SecureDashboardHandler(SimpleHTTPRequestHandler):
                 if not user:
                     raise Exception("User not found")
                 
-                # Get redirect URI
                 host = self.headers.get("Host", "localhost:8765")
                 protocol = "https" if "railway" in host or "render" in host or "herokuapp" in host else "http"
                 redirect_uri = f"{protocol}://{host}/oauth/callback"
                 
-                # Create new flow
                 client_config = {
                     "web": {
                         "client_id": user["google_client_id"],
                         "client_secret": user["google_client_secret"],
-                        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                        "token_uri": "https://oauth2.googleapis.com/token",
-                        "redirect_uris": [redirect_uri]
                     }
                 }
-                
-                flow = Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri)
             
-            # Exchange code for tokens
-            flow.fetch_token(code=code)
+            # Exchange code for tokens using direct HTTP (no PKCE needed)
+            import urllib.request
+            import urllib.parse
             
-            creds = flow.credentials
+            token_data = urllib.parse.urlencode({
+                "code": code,
+                "client_id": client_config["web"]["client_id"],
+                "client_secret": client_config["web"]["client_secret"],
+                "redirect_uri": redirect_uri,
+                "grant_type": "authorization_code"
+            }).encode()
+            
+            req = urllib.request.Request(
+                "https://oauth2.googleapis.com/token",
+                data=token_data,
+                headers={"Content-Type": "application/x-www-form-urlencoded"}
+            )
+            
+            with urllib.request.urlopen(req) as response:
+                token_response = json.loads(response.read().decode())
+            
+            # Build credentials dict
+            creds_data = {
+                "token": token_response["access_token"],
+                "refresh_token": token_response.get("refresh_token"),
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "client_id": client_config["web"]["client_id"],
+                "client_secret": client_config["web"]["client_secret"],
+                "scopes": SCOPES
+            }
             
             # Save token
             users = load_users()
-            users[user_id]["google_token"] = json.loads(creds.to_json())
+            users[user_id]["google_token"] = creds_data
             save_users(users)
             
             # Create new session and redirect

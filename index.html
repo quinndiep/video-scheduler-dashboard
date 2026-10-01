@@ -559,6 +559,9 @@
         <h1>Video Upload Scheduler</h1>
       </div>
       <div class="header-actions">
+        <div id="user-badge" style="display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: rgba(255,255,255,0.1); border-radius: 20px; font-size: 13px;">
+          <span id="user-email-display">Loading...</span>
+        </div>
         <div class="drive-connect" id="drive-status">
           <span>📁</span>
           <span>Checking...</span>
@@ -566,6 +569,7 @@
         <button class="btn btn-secondary" onclick="refreshVideos()">
           🔄 Refresh
         </button>
+        <button onclick="handleLogout()" style="padding: 8px 16px; background: #ef4444; border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 13px;">Logout</button>
       </div>
     </header>
     
@@ -736,14 +740,20 @@
         const data = await res.json();
         
         const statusEl = document.getElementById('drive-status');
-        if (data.connected) {
+        const userEmailEl = document.getElementById('user-email-display');
+        
+        if (data.connected || data.success) {
           statusEl.className = 'drive-connect connected';
-          statusEl.innerHTML = `<span>✅</span><span>${data.user.email}</span>`;
+          const userEmail = data.user?.email || data.user || 'Connected';
+          statusEl.innerHTML = `<span>✅</span><span>${userEmail}</span>`;
+          if (userEmailEl) userEmailEl.textContent = userEmail;
           
           // Update YouTube channel info
           if (data.youtube && data.youtube.hasChannel) {
             document.getElementById('youtube-channel-name').textContent = data.youtube.title;
             document.getElementById('youtube-subscriber-count').textContent = `${data.youtube.subscriberCount} subscribers`;
+          } else if (data.youtube_channel) {
+            document.getElementById('youtube-channel-name').textContent = data.youtube_channel;
           } else {
             document.getElementById('youtube-channel-name').textContent = 'Not connected';
             document.getElementById('youtube-subscriber-count').textContent = data.youtube?.error || '';
@@ -751,12 +761,16 @@
         } else {
           statusEl.className = 'drive-connect disconnected';
           statusEl.innerHTML = `<span>❌</span><span>Not Connected</span>`;
+          if (userEmailEl) userEmailEl.textContent = 'Not connected';
+          // Redirect to login
+          window.location.href = '/login.html';
         }
       } catch (e) {
         console.error('Status check failed:', e);
         const statusEl = document.getElementById('drive-status');
         statusEl.className = 'drive-connect disconnected';
         statusEl.innerHTML = `<span>⚠️</span><span>Server Offline</span>`;
+        window.location.href = '/login.html';
       }
     }
     
@@ -1105,6 +1119,15 @@
     
     function showYouTubePanel() {
       showToast('YouTube channel connected!');
+    }
+    
+    async function handleLogout() {
+      try {
+        await fetch(`${API_BASE}/api/auth/logout`, { method: 'POST' });
+        window.location.href = '/login.html';
+      } catch (e) {
+        window.location.href = '/login.html';
+      }
     }
     
     async function loadSchedules() {

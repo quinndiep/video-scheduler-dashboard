@@ -448,30 +448,29 @@ class SecureDashboardHandler(SimpleHTTPRequestHandler):
         protocol = "https" if "railway" in host or "render" in host or "herokuapp" in host else "http"
         redirect_uri = f"{protocol}://{host}/oauth/callback"
         
-        # Create OAuth flow
+        # Generate state token (includes user_id for callback)
+        state = b64encode(json.dumps({"user_id": user_id, "nonce": secrets.token_urlsafe(16)}).encode()).decode()
+        
+        # Build auth URL manually (NO PKCE)
+        import urllib.parse
+        auth_params = {
+            "client_id": user["google_client_id"],
+            "redirect_uri": redirect_uri,
+            "response_type": "code",
+            "scope": " ".join(SCOPES),
+            "access_type": "offline",
+            "prompt": "consent",
+            "state": state
+        }
+        auth_url = "https://accounts.google.com/o/oauth2/auth?" + urllib.parse.urlencode(auth_params)
+        
+        # Store flow data for callback (file-based, survives restarts)
         client_config = {
             "web": {
                 "client_id": user["google_client_id"],
                 "client_secret": user["google_client_secret"],
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [redirect_uri]
             }
         }
-        
-        flow = Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri)
-        
-        # Generate state token (includes user_id for callback)
-        state = b64encode(json.dumps({"user_id": user_id, "nonce": secrets.token_urlsafe(16)}).encode()).decode()
-        
-        auth_url, _ = flow.authorization_url(
-            access_type="offline",
-            include_granted_scopes="true",
-            prompt="consent",
-            state=state
-        )
-        
-        # Store flow data for callback (file-based, survives restarts)
         save_oauth_flow(state, user_id, redirect_uri, client_config)
         
         self.send_json({"success": True, "auth_url": auth_url})

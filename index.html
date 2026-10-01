@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Upload Scheduler</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: #e4e4e7;
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      margin-bottom: 30px;
+    }
+    
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .logo-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+    
+    .logo h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+    
+    .header-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    
+    .btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    .btn-secondary {
+      background: rgba(255,255,255,0.1);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    
+    .btn-secondary:hover {
+      background: rgba(255,255,255,0.15);
+    }
+    
+    .btn-success {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+    }
+    
+    .btn-success:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+    }
+    
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .stat-card {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .stat-card h3 {
+      font-size: 0.85rem;
+      color: #a1a1aa;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+    }
+    
+    .stat-value.drive { color: #4285f4; }
+    .stat-value.youtube { color: #ff0000; }
+    .stat-value.tiktok { color: #00f2ea; }
+    .stat-value.instagram { color: #e4405f; }
+    
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      gap: 20px;
+    }
+    
+    .panel {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.1);
+      overflow: hidden;
+    }
+    
+    .panel-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .panel-header h2 {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    
+    .panel-content {
+      padding: 20px;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    
+    .video-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .video-item {
+      display: flex;
+      gap: 15px;
+      padding: 15px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.08);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .video-item:hover {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(102, 126, 234, 0.5);
+    }
+    
+    .video-item.selected {
+      background: rgba(102, 126, 234, 0.15);
+      border-color: #667eea;
+    }
+    
+    .video-thumb {
+      width: 120px;
+      height: 68px;
+      background: #2a2a3e;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    
+    .video-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    
+    .video-info {
+      flex: 1;
+      min-width: 0;
+    }
+    
+    .video-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .video-meta {
+      font-size: 0.85rem;
+      color: #a1a1aa;
+    }
+    
+    .video-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    
+    .status-badge {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    
+    .status-pending {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+    }
+    
+    .status-scheduled {
+      background: rgba(102, 126, 234, 0.2);
+      color: #818cf8;
+    }
+    
+    .status-uploaded {
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+    }
+    
+    .platform-icons {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    
+    .platform-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+    
+    .platform-icon.youtube { background: rgba(255,0,0,0.2); }
+    .platform-icon.tiktok { background: rgba(0,242,234,0.2); }
+    .platform-icon.instagram { background: rgba(228,64,95,0.2); }
+    
+    .schedule-form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    
+    .form-group label {
+      font-size: 0.85rem;
+      color: #a1a1aa;
+      font-weight: 500;
+    }
+    
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.05);
+      color: white;
+      font-size: 14px;
+    }
+    
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    
+    .form-group textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+    
+    .platform-checkboxes {
+      display: flex;
+      gap: 12px;
+    }
+    
+    .platform-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    
+    .platform-checkbox:hover {
+      background: rgba(255,255,255,0.1);
+    }
+    
+    .platform-checkbox.checked {
+      border-color: #667eea;
+      background: rgba(102, 126, 234, 0.15);
+    }
+    
+    .platform-checkbox input {
+      display: none;
+    }
+    
+    .checkbox-indicator {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      border: 2px solid rgba(255,255,255,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    
+    .platform-checkbox.checked .checkbox-indicator {
+      background: #667eea;
+      border-color: #667eea;
+    }
+    
+    .checkbox-indicator::after {
+      content: '✓';
+      color: white;
+      font-size: 12px;
+      opacity: 0;
+    }
+    
+    .platform-checkbox.checked .checkbox-indicator::after {
+      opacity: 1;
+    }
+    
+    .schedule-queue {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .queue-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    
+    .queue-header h3 {
+      font-size: 0.9rem;
+      color: #a1a1aa;
+    }
+    
+    .queue-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    
+    .queue-item-info {
+      flex: 1;
+    }
+    
+    .queue-item-title {
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+    
+    .queue-item-time {
+      font-size: 0.8rem;
+      color: #a1a1aa;
+    }
+    
+    .queue-item-platforms {
+      display: flex;
+      gap: 4px;
+    }
+    
+    .remove-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: none;
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .remove-btn:hover {
+      background: rgba(239, 68, 68, 0.3);
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #71717a;
+    }
+    
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+    
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      padding: 16px 24px;
+      background: #10b981;
+      color: white;
+      border-radius: 10px;
+      display: none;
+      animation: slideIn 0.3s ease;
+      z-index: 1000;
+    }
+    
+    .toast.show {
+      display: block;
+    }
+    
+    @keyframes slideIn {
+      from {
+        transform: translateY(20px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+    
+    .drive-connect {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: rgba(66, 133, 244, 0.2);
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
+    
+    .drive-connect.connected {
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+    }
+    
+    .drive-connect.disconnected {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+    
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+      color: #a1a1aa;
+    }
+    
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid rgba(255,255,255,0.1);
+      border-top-color: #667eea;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 12px;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .folder-select {
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: white;
+      font-size: 14px;
+      min-width: 200px;
+    }
+    
+    @media (max-width: 1200px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">
+        <div class="logo-icon">📹</div>
+        <h1>Video Upload Scheduler</h1>
+      </div>
+      <div class="header-actions">
+        <div class="drive-connect" id="drive-status">
+          <span>📁</span>
+          <span>Checking...</span>
+        </div>
+        <button class="btn btn-secondary" onclick="refreshVideos()">
+          🔄 Refresh
+        </button>
+      </div>
+    </header>
+    
+    <div class="stats-grid">
+      <div class="stat-card">
+        <h3>Videos in Drive</h3>
+        <div class="stat-value drive" id="drive-count">-</div>
+      </div>
+      <div class="stat-card" id="youtube-channel-card" style="cursor: pointer;" onclick="showYouTubePanel()">
+        <h3>YouTube Channel</h3>
+        <div class="stat-value youtube" id="youtube-channel-name" style="font-size: 1rem;">Loading...</div>
+        <div style="font-size: 0.8rem; color: #a1a1aa;" id="youtube-subscriber-count"></div>
+      </div>
+      <div class="stat-card">
+        <h3>Upload Queue</h3>
+        <div class="stat-value pending" id="queue-count">0</div>
+      </div>
+      <div class="stat-card">
+        <h3>Uploads Today</h3>
+        <div class="stat-value" style="color: #10b981;" id="uploads-today">0</div>
+      </div>
+    </div>
+    
+    <div class="main-grid">
+      <div class="panel">
+        <div class="panel-header">
+          <h2>📂 Videos from Google Drive</h2>
+          <select class="folder-select" id="folder-select" onchange="loadVideos()">
+            <option value="">All Videos</option>
+          </select>
+        </div>
+        <div class="panel-content">
+          <div class="video-list" id="video-list">
+            <div class="loading">
+              <div class="spinner"></div>
+              Loading videos from Google Drive...
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="panel">
+        <div class="panel-header">
+          <h2>📅 Schedule Upload</h2>
+        </div>
+        <div class="panel-content">
+          <div class="schedule-form">
+            <div class="form-group">
+              <label>Selected Video</label>
+              <input type="text" id="selected-video" placeholder="Click a video to select" readonly>
+              <input type="hidden" id="selected-video-id">
+            </div>
+            
+            <div class="form-group">
+              <label>Title</label>
+              <input type="text" id="video-title" placeholder="Enter video title">
+            </div>
+            
+            <div class="form-group">
+              <label>Description</label>
+              <textarea id="video-description" placeholder="Enter description for the video"></textarea>
+            </div>
+            
+            <div class="form-group">
+              <label>Schedule Date & Time</label>
+              <input type="datetime-local" id="schedule-time">
+            </div>
+            
+            <div class="form-group">
+              <label>Privacy Status</label>
+              <select id="privacy-status" style="padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); color: white;">
+                <option value="private">🔒 Private</option>
+                <option value="unlisted">🔗 Unlisted</option>
+                <option value="public">🌍 Public</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label>Platforms</label>
+              <div class="platform-checkboxes">
+                <label class="platform-checkbox checked" onclick="togglePlatform(this)">
+                  <input type="checkbox" value="youtube" checked>
+                  <span class="checkbox-indicator"></span>
+                  <span>▶️ YouTube</span>
+                </label>
+                <label class="platform-checkbox checked" onclick="togglePlatform(this)">
+                  <input type="checkbox" value="tiktok" checked>
+                  <span class="checkbox-indicator"></span>
+                  <span>🎵 TikTok</span>
+                </label>
+                <label class="platform-checkbox checked" onclick="togglePlatform(this)">
+                  <input type="checkbox" value="instagram" checked>
+                  <span class="checkbox-indicator"></span>
+                  <span>📸 Instagram</span>
+                </label>
+              </div>
+            </div>
+            
+            <button class="btn btn-success" onclick="uploadToYouTube()" id="upload-btn" style="width: 100%; justify-content: center;">
+              ▶️ Upload to YouTube Now
+            </button>
+            
+            <button class="btn btn-primary" onclick="addToQueue()" style="width: 100%; justify-content: center; margin-top: 8px;">
+              📅 Schedule for Later
+            </button>
+          </div>
+          
+          <div class="schedule-queue">
+            <div class="queue-header">
+              <h3>⏳ Pending Approval</h3>
+              <button class="btn btn-primary" onclick="approveAll()" id="approve-btn" style="padding: 8px 16px; font-size: 13px;">
+                🚀 Approve & Schedule
+              </button>
+            </div>
+            <div id="approval-queue">
+              <div class="empty-state">
+                <div class="empty-state-icon">📋</div>
+                <p>No videos pending approval</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="schedule-queue" style="margin-top: 20px;">
+            <div class="queue-header">
+              <h3>📅 Scheduled Uploads</h3>
+              <button class="btn btn-secondary" onclick="loadSchedules()" style="padding: 8px 12px; font-size: 12px;">
+                🔄 Refresh
+              </button>
+            </div>
+            <div id="scheduled-list">
+              <div class="loading">
+                <div class="spinner"></div>
+                Loading schedules...
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="toast" id="toast"></div>
+  
+  <script>
+    const API_BASE = window.location.origin;
+    
+    let videos = [];
+    let folders = [];
+    let selectedVideo = null;
+    let approvalQueue = [];
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      checkDriveStatus();
+      loadFolders();
+      loadVideos();
+      loadSchedules();
+      
+      // Set default datetime
+      const now = new Date();
+      now.setHours(now.getHours() + 1);
+      document.getElementById('schedule-time').value = now.toISOString().slice(0, 16);
+    });
+    
+    async function checkDriveStatus() {
+      try {
+        const res = await fetch(`${API_BASE}/api/status`);
+        const data = await res.json();
+        
+        const statusEl = document.getElementById('drive-status');
+        if (data.connected) {
+          statusEl.className = 'drive-connect connected';
+          statusEl.innerHTML = `<span>✅</span><span>${data.user.email}</span>`;
+          
+          // Update YouTube channel info
+          if (data.youtube && data.youtube.hasChannel) {
+            document.getElementById('youtube-channel-name').textContent = data.youtube.title;
+            document.getElementById('youtube-subscriber-count').textContent = `${data.youtube.subscriberCount} subscribers`;
+          } else {
+            document.getElementById('youtube-channel-name').textContent = 'Not connected';
+            document.getElementById('youtube-subscriber-count').textContent = data.youtube?.error || '';
+          }
+        } else {
+          statusEl.className = 'drive-connect disconnected';
+          statusEl.innerHTML = `<span>❌</span><span>Not Connected</span>`;
+        }
+      } catch (e) {
+        console.error('Status check failed:', e);
+        const statusEl = document.getElementById('drive-status');
+        statusEl.className = 'drive-connect disconnected';
+        statusEl.innerHTML = `<span>⚠️</span><span>Server Offline</span>`;
+      }
+    }
+    
+    async function loadFolders() {
+      try {
+        const res = await fetch(`${API_BASE}/api/folders`);
+        const data = await res.json();
+        
+        if (data.success) {
+          folders = data.folders;
+          const select = document.getElementById('folder-select');
+          select.innerHTML = '<option value="">All Videos</option>';
+          folders.forEach(f => {
+            select.innerHTML += `<option value="${f.id}">${f.name}</option>`;
+          });
+        }
+      } catch (e) {
+        console.error('Failed to load folders:', e);
+      }
+    }
+    
+    async function loadVideos() {
+      const listEl = document.getElementById('video-list');
+      listEl.innerHTML = `
+        <div class="loading">
+          <div class="spinner"></div>
+          Loading videos from Google Drive...
+        </div>
+      `;
+      
+      try {
+        const folderId = document.getElementById('folder-select').value;
+        const url = folderId 
+          ? `${API_BASE}/api/videos?folder=${folderId}`
+          : `${API_BASE}/api/videos`;
+          
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        if (data.success) {
+          videos = data.videos;
+          document.getElementById('drive-count').textContent = videos.length;
+          renderVideos();
+        } else {
+          listEl.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">⚠️</div>
+              <p>Error: ${data.error}</p>
+            </div>
+          `;
+        }
+      } catch (e) {
+        console.error('Failed to load videos:', e);
+        listEl.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">🔌</div>
+            <p>Cannot connect to server.<br>Make sure server.py is running.</p>
+          </div>
+        `;
+      }
+    }
+    
+    function refreshVideos() {
+      showToast('Refreshing...');
+      loadVideos();
+    }
+    
+    function renderVideos() {
+      const list = document.getElementById('video-list');
+      
+      if (videos.length === 0) {
+        list.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">📂</div>
+            <p>No videos found in Google Drive</p>
+          </div>
+        `;
+        return;
+      }
+      
+      list.innerHTML = videos.map(video => `
+        <div class="video-item ${selectedVideo?.id === video.id ? 'selected' : ''}" 
+             onclick="selectVideo('${video.id}')">
+          <div class="video-thumb">
+            ${video.thumbnail 
+              ? `<img src="${video.thumbnail}" alt="${video.title}" onerror="this.parentElement.innerHTML='🎬'">`
+              : '🎬'
+            }
+          </div>
+          <div class="video-info">
+            <div class="video-title">${video.title}</div>
+            <div class="video-meta">
+              ${video.size} • ${video.mimeType.split('/')[1].toUpperCase()} • 
+              ${new Date(video.modifiedTime).toLocaleDateString()}
+            </div>
+            <div class="video-status">
+              <span class="status-badge status-${video.status}">${video.status}</span>
+              ${video.webViewLink ? `<a href="${video.webViewLink}" target="_blank" style="color: #667eea; font-size: 12px; margin-left: 8px;">View in Drive ↗</a>` : ''}
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+    
+    function selectVideo(id) {
+      selectedVideo = videos.find(v => v.id === id);
+      if (selectedVideo) {
+        document.getElementById('selected-video').value = selectedVideo.title;
+        document.getElementById('selected-video-id').value = selectedVideo.id;
+        document.getElementById('video-title').value = selectedVideo.title.replace(/\.[^/.]+$/, ''); // Remove extension
+      }
+      renderVideos();
+    }
+    
+    function togglePlatform(el) {
+      el.classList.toggle('checked');
+      el.querySelector('input').checked = el.classList.contains('checked');
+      updatePlatformCounts();
+    }
+    
+    function updatePlatformCounts() {
+      document.getElementById('queue-count').textContent = approvalQueue.length;
+    }
+    
+    function addToQueue() {
+      if (!selectedVideo) {
+        showToast('Please select a video first', 'error');
+        return;
+      }
+      
+      const title = document.getElementById('video-title').value;
+      const description = document.getElementById('video-description').value;
+      const scheduleTime = document.getElementById('schedule-time').value;
+      
+      if (!scheduleTime) {
+        showToast('Please select a schedule time', 'error');
+        return;
+      }
+      
+      const platforms = Array.from(document.querySelectorAll('.platform-checkbox.checked input'))
+        .map(input => input.value);
+      
+      if (platforms.length === 0) {
+        showToast('Please select at least one platform', 'error');
+        return;
+      }
+      
+      approvalQueue.push({
+        id: Date.now(),
+        videoId: selectedVideo.id,
+        driveLink: selectedVideo.webViewLink,
+        downloadLink: selectedVideo.downloadLink,
+        title,
+        description,
+        scheduleTime,
+        privacy: document.getElementById('privacy-status').value,
+        platforms
+      });
+      
+      renderQueue();
+      updatePlatformCounts();
+      showToast('Added to approval queue!');
+      
+      // Reset form
+      selectedVideo = null;
+      document.getElementById('selected-video').value = '';
+      document.getElementById('selected-video-id').value = '';
+      document.getElementById('video-title').value = '';
+      document.getElementById('video-description').value = '';
+      renderVideos();
+    }
+    
+    function renderQueue() {
+      const queue = document.getElementById('approval-queue');
+      
+      if (approvalQueue.length === 0) {
+        queue.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">📋</div>
+            <p>No videos pending approval</p>
+          </div>
+        `;
+        return;
+      }
+      
+      queue.innerHTML = approvalQueue.map(item => `
+        <div class="queue-item">
+          <div class="queue-item-info">
+            <div class="queue-item-title">${item.title}</div>
+            <div class="queue-item-time">📅 ${new Date(item.scheduleTime).toLocaleString()}</div>
+          </div>
+          <div class="queue-item-platforms">
+            ${item.platforms.includes('youtube') ? '<div class="platform-icon youtube">▶️</div>' : ''}
+            ${item.platforms.includes('tiktok') ? '<div class="platform-icon tiktok">🎵</div>' : ''}
+            ${item.platforms.includes('instagram') ? '<div class="platform-icon instagram">📸</div>' : ''}
+          </div>
+          <button class="remove-btn" onclick="removeFromQueue(${item.id})">✕</button>
+        </div>
+      `).join('');
+    }
+    
+    function removeFromQueue(id) {
+      approvalQueue = approvalQueue.filter(item => item.id !== id);
+      renderQueue();
+      updatePlatformCounts();
+    }
+    
+    async function approveAll() {
+      if (approvalQueue.length === 0) {
+        showToast('No videos to approve', 'error');
+        return;
+      }
+      
+      const btn = document.getElementById('approve-btn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Scheduling...';
+      
+      try {
+        // Send to Hermes via window.hermes if in desktop app
+        if (window.hermes && window.hermes.send) {
+          window.hermes.send(`Create upload schedules for these videos: ${JSON.stringify(approvalQueue, null, 2)}`);
+          showToast(`✅ ${approvalQueue.length} video(s) sent to Media Schedule!`);
+        } else {
+          // Fallback: save to server
+          const res = await fetch(`${API_BASE}/api/schedule`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: approvalQueue })
+          });
+          const data = await res.json();
+          
+          if (data.success) {
+            showToast(`✅ ${approvalQueue.length} video(s) scheduled!`);
+          } else {
+            showToast(`Error: ${data.error}`, 'error');
+          }
+        }
+        
+        // Clear queue
+        approvalQueue = [];
+        renderQueue();
+        updatePlatformCounts();
+      } catch (e) {
+        showToast(`Error: ${e.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🚀 Approve & Schedule';
+      }
+    }
+    
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.style.background = type === 'error' ? '#ef4444' : '#10b981';
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+    
+    async function uploadToYouTube() {
+      if (!selectedVideo) {
+        showToast('Please select a video first', 'error');
+        return;
+      }
+      
+      const title = document.getElementById('video-title').value || selectedVideo.title;
+      const description = document.getElementById('video-description').value;
+      const privacy = document.getElementById('privacy-status').value;
+      
+      const btn = document.getElementById('upload-btn');
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Starting upload...';
+      
+      try {
+        const res = await fetch(`${API_BASE}/api/youtube/upload`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            driveFileId: selectedVideo.id,
+            title: title,
+            description: description,
+            privacy: privacy
+          })
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+          showToast(`🚀 Upload started! Job ID: ${data.jobId}`);
+          btn.innerHTML = '⏳ Uploading...';
+          
+          // Poll for status
+          pollUploadStatus(data.jobId);
+        } else {
+          showToast(`Error: ${data.error}`, 'error');
+          btn.disabled = false;
+          btn.innerHTML = '▶️ Upload to YouTube Now';
+        }
+      } catch (e) {
+        showToast(`Error: ${e.message}`, 'error');
+        btn.disabled = false;
+        btn.innerHTML = '▶️ Upload to YouTube Now';
+      }
+    }
+    
+    async function pollUploadStatus(jobId) {
+      const btn = document.getElementById('upload-btn');
+      
+      const poll = async () => {
+        try {
+          const res = await fetch(`${API_BASE}/api/upload/status?jobId=${jobId}`);
+          const data = await res.json();
+          
+          if (data.status === 'completed') {
+            showToast(`✅ Upload complete! ${data.result.url}`);
+            btn.disabled = false;
+            btn.innerHTML = '▶️ Upload to YouTube Now';
+            
+            // Update uploads today count
+            const uploadsEl = document.getElementById('uploads-today');
+            uploadsEl.textContent = parseInt(uploadsEl.textContent || 0) + 1;
+            
+            // Clear form
+            selectedVideo = null;
+            document.getElementById('selected-video').value = '';
+            document.getElementById('video-title').value = '';
+            document.getElementById('video-description').value = '';
+            renderVideos();
+            return;
+          } else if (data.status === 'failed') {
+            showToast(`❌ Upload failed: ${data.error}`, 'error');
+            btn.disabled = false;
+            btn.innerHTML = '▶️ Upload to YouTube Now';
+            return;
+          } else {
+            btn.innerHTML = `⏳ ${data.message || 'Uploading...'}`;
+            setTimeout(poll, 3000);
+          }
+        } catch (e) {
+          console.error('Poll error:', e);
+          setTimeout(poll, 5000);
+        }
+      };
+      
+      poll();
+    }
+    
+    function showYouTubePanel() {
+      showToast('YouTube channel connected!');
+    }
+    
+    async function loadSchedules() {
+      const listEl = document.getElementById('scheduled-list');
+      
+      try {
+        const res = await fetch(`${API_BASE}/api/schedules`);
+        const data = await res.json();
+        
+        if (data.success && data.schedules.length > 0) {
+          listEl.innerHTML = data.schedules.map(item => `
+            <div class="queue-item" style="flex-wrap: wrap;">
+              <div class="queue-item-info" style="flex: 1; min-width: 200px;">
+                <div class="queue-item-title">${item.title || 'Untitled'}</div>
+                <div class="queue-item-time">📅 ${item.scheduleTime ? new Date(item.scheduleTime).toLocaleString() : 'Not set'}</div>
+                <div style="font-size: 0.75rem; color: ${item.status === 'uploaded' ? '#10b981' : item.status === 'uploading' ? '#f59e0b' : '#a1a1aa'}; margin-top: 4px;">
+                  ${item.status === 'uploaded' ? '✅ Uploaded' : item.status === 'uploading' ? '⏳ Uploading...' : '⏰ Pending'}
+                  ${item.privacy ? ` • ${item.privacy}` : ''}
+                </div>
+              </div>
+              <div class="queue-item-platforms">
+                ${(item.platforms || []).includes('youtube') ? '<div class="platform-icon youtube">▶️</div>' : ''}
+                ${(item.platforms || []).includes('tiktok') ? '<div class="platform-icon tiktok">🎵</div>' : ''}
+                ${(item.platforms || []).includes('instagram') ? '<div class="platform-icon instagram">📸</div>' : ''}
+              </div>
+              <div style="display: flex; gap: 6px; margin-top: 8px;">
+                ${item.status !== 'uploaded' && item.status !== 'uploading' ? `
+                  <button class="btn btn-success" onclick="uploadScheduledItem(${item.id})" style="padding: 6px 12px; font-size: 12px;">
+                    ▶️ Upload Now
+                  </button>
+                ` : ''}
+                <button class="remove-btn" onclick="deleteSchedule(${item.id})" title="Delete">✕</button>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          listEl.innerHTML = `
+            <div class="empty-state" style="padding: 20px;">
+              <div class="empty-state-icon">📅</div>
+              <p>No scheduled uploads</p>
+            </div>
+          `;
+        }
+      } catch (e) {
+        console.error('Failed to load schedules:', e);
+        listEl.innerHTML = `<div class="empty-state"><p>Failed to load schedules</p></div>`;
+      }
+    }
+    
+    async function deleteSchedule(id) {
+      if (!confirm('Delete this scheduled upload?')) return;
+      
+      try {
+        const res = await fetch(`${API_BASE}/api/schedule/delete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          showToast('Schedule deleted');
+          loadSchedules();
+        } else {
+          showToast(`Error: ${data.error}`, 'error');
+        }
+      } catch (e) {
+        showToast(`Error: ${e.message}`, 'error');
+      }
+    }
+    
+    async function uploadScheduledItem(id) {
+      try {
+        showToast('Starting upload...');
+        
+        const res = await fetch(`${API_BASE}/api/schedule/upload`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          showToast(`🚀 Upload started! Job: ${data.jobId}`);
+          loadSchedules();
+          
+          // Poll for completion
+          pollScheduledUpload(data.jobId);
+        } else {
+          showToast(`Error: ${data.error}`, 'error');
+        }
+      } catch (e) {
+        showToast(`Error: ${e.message}`, 'error');
+      }
+    }
+    
+    async function pollScheduledUpload(jobId) {
+      const poll = async () => {
+        try {
+          const res = await fetch(`${API_BASE}/api/upload/status?jobId=${jobId}`);
+          const data = await res.json();
+          
+          if (data.status === 'completed') {
+            showToast(`✅ Upload complete! ${data.result?.url || ''}`);
+            loadSchedules();
+            return;
+          } else if (data.status === 'failed') {
+            showToast(`❌ Upload failed: ${data.error}`, 'error');
+            loadSchedules();
+            return;
+          } else {
+            setTimeout(poll, 3000);
+          }
+        } catch (e) {
+          setTimeout(poll, 5000);
+        }
+      };
+      
+      poll();
+    }
+  </script>
+</body>
+</html>

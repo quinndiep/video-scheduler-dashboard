@@ -19,6 +19,8 @@ from youtube_upload import (
     list_my_videos,
     upload_from_drive_to_youtube,
 )
+# Generic platform uploader (YouTube, Instagram, Facebook, TikTok)
+from platform_upload import upload_to_platforms
 
 # Configuration
 HERMES_HOME = Path(os.environ.get("HERMES_HOME", str(Path.home() / ".hermes/profiles/scheduler")))
@@ -120,27 +122,29 @@ def list_folders():
     return results.get("files", [])
 
 
-def upload_video_async(job_id: str, drive_file_id: str, title: str, description: str, privacy: str):
-    """Upload video in background thread."""
+def upload_video_async(job_id: str, drive_file_id: str, title: str, description: str, privacy: str, platforms=None):
+    """Upload video(s) in background thread for specified platforms."""
+    if platforms is None:
+        platforms = ["youtube"]
     try:
         upload_jobs[job_id]["status"] = "downloading"
         upload_jobs[job_id]["message"] = "Downloading from Google Drive..."
-        
-        result = upload_from_drive_to_youtube(
+        # Use generic uploader which will handle each platform
+        result = upload_to_platforms(
             drive_file_id=drive_file_id,
             title=title,
             description=description,
-            privacy_status=privacy,
+            privacy=privacy,
+            platforms=platforms,
         )
-        
         upload_jobs[job_id]["status"] = "completed"
         upload_jobs[job_id]["result"] = result
-        upload_jobs[job_id]["message"] = f"Upload complete! Video: {result['url']}"
-        
+        upload_jobs[job_id]["message"] = "Upload completed for platforms"
     except Exception as e:
         upload_jobs[job_id]["status"] = "failed"
         upload_jobs[job_id]["error"] = str(e)
         upload_jobs[job_id]["message"] = f"Upload failed: {str(e)}"
+    # Deprecated YouTube-only upload logic removed
 
 
 class DashboardHandler(SimpleHTTPRequestHandler):
@@ -263,7 +267,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json({"success": False, "error": str(e)}, 500)
     
     def handle_youtube_upload(self):
-        """Start YouTube upload from Google Drive."""
+        """Start upload (multiple platforms) from Google Drive."""
         content_length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(content_length)
         
@@ -273,6 +277,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             title = data.get("title", "Untitled Video")
             description = data.get("description", "")
             privacy = data.get("privacy", "private")
+            platforms = data.get("platforms", ["youtube"])
             
             if not drive_file_id:
                 self.send_json({"success": False, "error": "Missing driveFileId"}, 400)
@@ -287,12 +292,20 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 "message": "Upload queued...",
                 "driveFileId": drive_file_id,
                 "title": title,
+                "platforms": platforms,
             }
             
             # Start upload in background thread
             thread = threading.Thread(
                 target=upload_video_async,
-                args=(job_id, drive_file_id, title, description, privacy)
+                args=(
+                    job_id,
+                    drive_file_id,
+                    title,
+                    description,
+                    privacy,
+                    platforms,
+                ),
             )
             thread.daemon = True
             thread.start()
@@ -330,8 +343,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             if schedule_file.exists():
                 schedules = json.loads(schedule_file.read_text())
             
-            # Add status to new items
+            # Validate and enrich each new item
             for item in data.get("items", []):
+                required = ["id", "videoId", "title", "scheduledTime", "platforms"]
+                missing = [k for k in required if k not in item]
+                if missing:
+                    raise Exception(f"Schedule item missing required keys: {', '.join(missing)}")
+                item.setdefault("description", "")
+                item.setdefault("privacy", "private")
                 item["status"] = "pending"
             
             schedules.extend(data.get("items", []))
@@ -414,10 +433,17 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             schedule_file.write_text(json.dumps(schedules, indent=2))
             
             # Start upload in background
+            # Start upload in background, passing platforms from schedule
             thread = threading.Thread(
                 target=upload_video_async,
-                args=(job_id, schedule.get("videoId"), schedule.get("title"), 
-                      schedule.get("description", ""), schedule.get("privacy", "private"))
+                args=(
+                    job_id,
+                    schedule.get("videoId"),
+                    schedule.get("title"),
+                    schedule.get("description", ""),
+                    schedule.get("privacy", "private"),
+                    schedule.get("platforms", ["youtube"]),
+                ),
             )
             thread.daemon = True
             thread.start()
@@ -435,14 +461,76 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         print(f"[Server] {args[0]}")
 
 
+def schedule_checker():
+    """Background thread that checks scheduled uploads and triggers them when due."""
+    import time as _time
+    import datetime as _dt
+    schedule_file = DASHBOARD_DIR / "schedules.json"
+    while True:
+        if schedule_file.exists():
+            try:
+                schedules = json.loads(schedule_file.read_text())
+            except Exception:
+                schedules = []
+            now = _dt.datetime.utcnow()
+            updated = False
+            for s in schedules:
+                if s.get("status") == "pending":
+                    sched_time_str = s.get("scheduledTime")
+                    if not sched_time_str:
+                        continue
+                    try:
+                        sched_time = _dt.datetime.fromisoformat(sched_time_str)
+                    except Exception:
+                        continue
+                    if sched_time <= now:
+                        # Trigger upload
+                        job_id = f"upload_{int(_time.time() * 1000)}"
+                        upload_jobs[job_id] = {
+                            "status": "queued",
+                            "message": "Upload queued via schedule...",
+                            "driveFileId": s.get("videoId"),
+                            "title": s.get("title"),
+                        }
+                        # Update schedule status
+                        s["status"] = "uploading"
+                        s["jobId"] = job_id
+                        # Start upload thread
+                        thread = threading.Thread(
+                            target=upload_video_async,
+                            args=(
+                                job_id,
+                                s.get("videoId"),
+                                s.get("title"),
+                                s.get("description", ""),
+                                s.get("privacy", "private"),
+                                s.get("platforms", ["youtube"]),
+                            ),
+                        )
+                        thread.daemon = True
+                        thread.start()
+                        updated = True
+            if updated:
+                schedule_file.write_text(json.dumps(schedules, indent=2))
+        _time.sleep(30)  # check every 30 seconds
+
 def run_server(port=8765, host="0.0.0.0"):
-    """Start the dashboard server."""
-    server = HTTPServer((host, port), DashboardHandler)
+    """Start the dashboard server.
+
+    Use the secure handler (which includes authentication routes) instead of the
+    basic DashboardHandler. This fixes the 404 errors seen when posting to
+    `/api/auth/register` and related endpoints.
+    """
+    # Import the secure handler that implements /api/auth/* routes
+    from server_secure import SecureDashboardHandler
+    server = HTTPServer((host, port), SecureDashboardHandler)
     print(f"🚀 Video Scheduler Dashboard running at http://{host}:{port}")
     print(f"📁 Serving from: {DASHBOARD_DIR}")
     print(f"🎬 YouTube integration: enabled")
     print("Press Ctrl+C to stop")
-    
+    # Start background scheduler thread
+    checker_thread = threading.Thread(target=schedule_checker, daemon=True)
+    checker_thread.start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

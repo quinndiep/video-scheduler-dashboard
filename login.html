@@ -463,7 +463,7 @@
     
     async function checkAuth() {
       try {
-        const res = await fetch(`${API}/api/auth/status`);
+        const res = await fetch(`${API}/api/v1/auth/status`);
         const data = await res.json();
         
         if (data.google_connected) {
@@ -555,7 +555,7 @@
       const password = document.getElementById('login-password').value;
       
       try {
-        const res = await fetch(`${API}/api/auth/login`, {
+        const res = await fetch(`${API}/api/v1/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password })
@@ -566,7 +566,7 @@
           showSuccess('Login successful!');
           setTimeout(checkAuth, 500);
         } else {
-          showError(data.error || 'Login failed');
+          showError(data.error?.message || data.error || 'Login failed');
         }
       } catch (e) {
         showError('Network error');
@@ -585,7 +585,7 @@
       }
       
       try {
-        const res = await fetch(`${API}/api/auth/register`, {
+        const res = await fetch(`${API}/api/v1/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password })
@@ -596,7 +596,7 @@
           showSuccess('Account created!');
           setTimeout(checkAuth, 500);
         } else {
-          showError(data.error || 'Registration failed');
+          showError(data.error?.message || data.error || 'Registration failed');
         }
       } catch (e) {
         showError('Network error');
@@ -609,7 +609,7 @@
       const client_secret = document.getElementById('client-secret').value;
       
       try {
-        const res = await fetch(`${API}/api/auth/setup-google`, {
+        const res = await fetch(`${API}/api/v1/auth/setup-google`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ client_id, client_secret })
@@ -620,7 +620,7 @@
           showSuccess('Credentials saved!');
           goToStep(3);
         } else {
-          showError(data.error || 'Failed to save credentials');
+          showError(data.error?.message || data.error || 'Failed to save credentials');
         }
       } catch (e) {
         showError('Network error');
@@ -629,13 +629,14 @@
     
     async function handleConnectGoogle() {
       try {
-        const res = await fetch(`${API}/api/auth/start-oauth`, { method: 'POST' });
+        const res = await fetch(`${API}/api/v1/auth/start-oauth`, { method: 'POST' });
         const data = await res.json();
-        
-        if (data.success && data.auth_url) {
-          window.location.href = data.auth_url;
+
+        const authUrl = data.auth_url || data.data?.auth_url;
+        if (data.success && authUrl) {
+          window.location.href = authUrl;
         } else {
-          showError(data.error || 'Failed to start OAuth');
+          showError(data.error?.message || data.error || 'Failed to start OAuth');
         }
       } catch (e) {
         showError('Network error');
@@ -644,7 +645,7 @@
     
     async function handleLogout() {
       try {
-        await fetch(`${API}/api/auth/logout`, { method: 'POST' });
+        await fetch(`${API}/api/v1/auth/logout`, { method: 'POST' });
         window.location.reload();
       } catch (e) {
         window.location.reload();
